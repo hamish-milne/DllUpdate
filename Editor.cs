@@ -46,7 +46,6 @@ namespace DllUpdate
 
 		private const float margin = 5f;
 		private const float tintAlpha = 0.5f;
-		private const int maxDropdownCount = 15;
 		static readonly Color successColor = new Color(0, 1, 0, tintAlpha);
 		static readonly Color failureColor = new Color(1, 0, 0, tintAlpha);
 		static readonly Color warningColor = new Color(1, 1, 0, tintAlpha);
@@ -57,6 +56,7 @@ namespace DllUpdate
 		// The typed text for 'add existing script'
 		private string addScript;
 		private Vector2 scrollPosition;
+		private ScriptItem objectPickerTarget;
 
 		// Adds a new ScriptData item to a given category
 		static void AddToGroup(List<ScriptGroup> list, ScriptData script)
@@ -134,11 +134,13 @@ namespace DllUpdate
 						{
 							var data = DllUpdate.GetInstance().CurrentData;
 							var items = data
-								.Where(d => d.Status == ScriptStatus.New ||
-									(data.Count < maxDropdownCount && d.Status == ScriptStatus.Old))
-								.Where(d => script.oldScript.Type == ScriptType.Unknown || d.Type == script.oldScript.Type)
-								.Select(d => new GUIContent(d.Namespace + "." + d.Name));
-							EditorUtility.DisplayCustomMenu(buttonRect, items.ToArray(), -1, SelectMenuItem, script);
+								.Where(d => d.Status == ScriptStatus.New)
+								.Where(d => script.oldScript.Type == ScriptType.Unknown
+									|| d.Type == script.oldScript.Type)
+								.Select(d => new GUIContent((string.IsNullOrEmpty(d.Namespace)
+									? "" : (d.Namespace + ".")) + d.Name));
+							EditorUtility.DisplayCustomMenu(buttonRect,
+								new []{new GUIContent("Choose...")}.Concat(items).ToArray(), -1, SelectMenuItem, script);
 						}
 
 						GUILayout.EndHorizontal();
@@ -152,16 +154,35 @@ namespace DllUpdate
 		}
 
 		// Callback when a quick selection is made
-		static void SelectMenuItem(object userData, string[] options, int selected)
+		void SelectMenuItem(object userData, string[] options, int selected)
 		{
-			if (selected >= 0)
+			if (selected > 0)
+			{
 				((ScriptItem) userData).text = options[selected];
-			// This makes sure the text field changes immediately
-			EditorGUIUtility.editingTextField = false;
+				// This makes sure the text field changes immediately
+				EditorGUIUtility.editingTextField = false;
+			} else
+			{
+				objectPickerTarget = (ScriptItem) userData;
+				EditorGUIUtility.ShowObjectPicker<MonoScript>(null, false, null, 1);
+			}
 		}
 
 		protected virtual void OnGUI()
 		{
+			switch (Event.current.commandName)
+			{
+				case "ObjectSelectorUpdated":
+					var script = (MonoScript)EditorGUIUtility.GetObjectPickerObject();
+					objectPickerTarget.text = script == null ? "" : script.GetClass().FullName;
+					EditorGUIUtility.editingTextField = false;
+					Repaint();
+					break;
+				case "ObjectSelectorClosed":
+					objectPickerTarget = null;
+					break;
+			}
+
 			const float buttonWidth = 60f;
 
 			GUILayout.BeginArea(new Rect(margin, margin,

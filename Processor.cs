@@ -20,7 +20,7 @@ namespace DllUpdate
 			var obj = DllUpdate.GetInstance();
 			obj.UpdateData();
 			if(obj.CheckData())
-				DllUpdateWindow.Open();
+				DllUpdateWindow.Open().RefreshData();
 		}
     }
 
@@ -84,6 +84,9 @@ namespace DllUpdate
 		void DelayedUpdate()
 		{
 			UpdateData();
+			BuildTypeCache();
+			SaveTypeCache(); // Generate initial type data
+			EditorUtility.SetDirty(this);
 			EditorApplication.update -= DelayedUpdate;
 		}
 
@@ -110,36 +113,43 @@ namespace DllUpdate
 			return type;
 		}
 
+		void SaveTypeCache()
+		{
+			foreach (var d in currentData.Where(d => d.Status != ScriptStatus.Deleted))
+				typeCache[d.Script] = d.Type;
+			scriptTypes.Clear();
+			scriptTypes.AddRange(typeCache.Select(pair => new ScriptTypePair { script = pair.Key, type = pair.Value }));
+		}
+
 		/// <summary>
 		/// Finalises script changes,
 		/// </summary>
 		public void SaveChanges()
 		{
 			BuildTypeCache();
+			SaveTypeCache();
 			foreach (var d in currentData)
 			{
 				switch (d.Status)
 				{
 					case ScriptStatus.New:
 						oldScripts.Add(d.Script);
-						typeCache[d.Script] = d.Type;
 						break;
 					case ScriptStatus.Deleted:
 						ignoreScripts.Add(d.Script);
 						break;
 					case ScriptStatus.Old:
-						typeCache[d.Script] = d.Type;
 						break;
+					default:
+						throw new ArgumentOutOfRangeException();
 				}
 			}
-			scriptTypes.Clear();
-			scriptTypes.AddRange(typeCache.Select(pair => new ScriptTypePair { script = pair.Key, type = pair.Value}));
 			currentData.Clear();
 			EditorUtility.SetDirty(this);
 		}
 
 		// Checks that an object is a user asset, not an internal one
-		static bool CheckAsset(UnityEngine.Object obj)
+		private static bool CheckAsset(UnityEngine.Object obj)
 		{
 			return AssetDatabase.GetAssetPath(obj).StartsWith("Assets", StringComparison.OrdinalIgnoreCase);
 		}
@@ -153,19 +163,9 @@ namespace DllUpdate
 				// Ignore system scripts
 				.Where(CheckAsset)
 				// Ignore DllUpdate scripts
-				.Where(script => !Equals(script.GetClass()?.Assembly, typeof(DllUpdate).Assembly))
+				.Where(script => !Equals(script.GetClass()?.Assembly, typeof (DllUpdate).Assembly))
 				// Ignore those that were deleted before (unless they're not deleted now)
-				.Where(script => !ignoreScripts.Contains(script) || script.GetClass() != null)
-				.Select(script => new ScriptData
-				(
-					script: script,
-					type: script.GetClass() != null ?
-					(script.GetClass().IsSubclassOf(typeof (ScriptableObject))
-						  ? ScriptType.ScriptableObject
-						  : ScriptType.MonoBehaviour)
-						  : (GetScriptType(script)),
-					old: oldScripts.Contains(script)
-				)));
+				.Where(script => !ignoreScripts.Contains(script) || script.GetClass() != null).Select(script => new ScriptData(script: script, type: script.GetClass() != null ? (script.GetClass().IsSubclassOf(typeof (ScriptableObject)) ? ScriptType.ScriptableObject : ScriptType.MonoBehaviour) : (GetScriptType(script)), old: oldScripts.Contains(script))));
 		}
 
 		/// <summary>
