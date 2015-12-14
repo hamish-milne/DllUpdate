@@ -30,7 +30,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System" />
     <Reference Include="UnityEditor">
       <HintPath>..\..\..\..\..\Program Files\Unity 5.0.0f4\Editor\Data\Managed\UnityEditor.dll</HintPath>
       <Private>False</Private>

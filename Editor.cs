@@ -210,7 +210,7 @@ namespace DllUpdate
 
 			// Add existing script
 			GUILayout.BeginHorizontal();
-			addScript = EditorGUILayout.TextField("Add script to rename", addScript);
+			addScript = EditorGUILayout.TextField("Add existing script", addScript);
 			var addScriptData = FindScript(addScript);
 			EditorGUI.BeginDisabledGroup(addScriptData == null
 				|| addScriptData.Status == ScriptStatus.Deleted);
